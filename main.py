@@ -77,9 +77,9 @@ def get_news_sentiment(symbols, start_date, end_date, info):
     
     logger.debug(f"Using API key: {api_key[:5]}...")
 
-    # Limit the date range for news articles to the last 30 days
+    # Ensure start_date and end_date are datetime objects
+    start_date = datetime.now() - timedelta(days=30)
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=30)
 
     st.info("Due to API limitations, news sentiment analysis is only available for the last 30 days.")
 
@@ -100,8 +100,8 @@ def get_news_sentiment(symbols, start_date, end_date, info):
                 qintitle=company_name,
                 language='en',
                 sort_by='publishedAt',
-                from_param=start_date.isoformat(),
-                to=end_date.isoformat(),
+                from_param=start_date.strftime('%Y-%m-%d'),
+                to=end_date.strftime('%Y-%m-%d'),
                 page_size=10
             )
             logger.debug(f"API response for {company_name}: {articles}")
@@ -139,6 +139,7 @@ def get_news_sentiment(symbols, start_date, end_date, info):
         except Exception as e:
             st.error(f"An error occurred while fetching news data: {str(e)}")
             logger.error(f"Error in get_news_sentiment: {str(e)}")
+            logger.error(f"Start date: {start_date}, End date: {end_date}")
     
     logger.info(f"Final news sentiment data: {news_sentiment}")
     return news_sentiment
