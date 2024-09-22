@@ -305,7 +305,9 @@ if data and info:
             st.write(f"{symbol} Data:")
             df = data[symbol].copy()
             df.index = pd.to_datetime(df.index).strftime('%Y-%m-%d')
-            st.dataframe(df)
+            # Remove SMA20, SMA50, and RSI columns from the displayed dataframe
+            df_display = df.drop(columns=['SMA20', 'SMA50', 'RSI'], errors='ignore')
+            st.dataframe(df_display)
 
     # CSV download buttons
     st.subheader("Download Data")
@@ -313,7 +315,9 @@ if data and info:
         if symbol in data:
             df = data[symbol].copy()
             df.index = pd.to_datetime(df.index).strftime('%Y-%m-%d')
-            csv = df.to_csv(index=True)
+            # Remove SMA20, SMA50, and RSI columns from the CSV file
+            df_csv = df.drop(columns=['SMA20', 'SMA50', 'RSI'], errors='ignore')
+            csv = df_csv.to_csv(index=True)
             b64 = base64.b64encode(csv.encode()).decode()
             href = f'<a href="data:file/csv;base64,{b64}" download="{symbol}_stock_data_{start_date.strftime("%Y-%m-%d")}_{end_date.strftime("%Y-%m-%d")}.csv">Download {symbol} CSV File</a>'
             st.markdown(href, unsafe_allow_html=True)
