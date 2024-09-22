@@ -7,6 +7,7 @@ import base64
 import io
 import numpy as np
 from newsapi import NewsApiClient
+from newsapi.newsapi_exception import NewsAPIException
 from textblob import TextBlob
 import plotly.express as px
 import logging
@@ -72,9 +73,15 @@ def calculate_technical_indicators(df):
 @st.cache_data(ttl=3600)
 def get_news_sentiment(symbols, start_date, end_date, info):
     news_sentiment = {}
-    api_key = "dd81e3f696c6436ab2b9f2a6adf3260c"
+    api_key = os.environ.get("NEWS_API_KEY")
     
     logger.debug(f"Using API key: {api_key[:5]}...")
+
+    # Limit the date range for news articles to the last 30 days
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=30)
+
+    st.info("Due to API limitations, news sentiment analysis is only available for the last 30 days.")
 
     try:
         newsapi = NewsApiClient(api_key=api_key)
@@ -126,9 +133,12 @@ def get_news_sentiment(symbols, start_date, end_date, info):
                     logger.info(f"Calculated average sentiment for {company_name}: {avg_sentiment}")
             else:
                 logger.warning(f"Received non-OK status for {company_name}: {articles['status']}")
+        except NewsAPIException as e:
+            st.error(f"News API Error: {str(e)}")
+            logger.error(f"NewsAPIException: {str(e)}")
         except Exception as e:
-            logger.error(f"Error processing news for {company_name}: {str(e)}")
-            logger.exception("Detailed error information:")
+            st.error(f"An error occurred while fetching news data: {str(e)}")
+            logger.error(f"Error in get_news_sentiment: {str(e)}")
     
     logger.info(f"Final news sentiment data: {news_sentiment}")
     return news_sentiment
