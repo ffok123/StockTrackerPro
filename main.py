@@ -18,17 +18,39 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Set page title and favicon
-st.set_page_config(page_title="Stock Data Visualizer", page_icon=":chart_with_upwards_trend:")
+st.set_page_config(page_title="Stock Data Visualizer", page_icon=":chart_with_upwards_trend:", layout="wide")
+
+# Custom CSS for dark/light mode
+def local_css(file_name):
+    with open(file_name, "r") as f:
+        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+# Function to toggle dark/light mode
+def toggle_theme():
+    if "dark_mode" not in st.session_state:
+        st.session_state.dark_mode = False
+    
+    if st.button("Toggle Dark/Light Mode"):
+        st.session_state.dark_mode = not st.session_state.dark_mode
+    
+    if st.session_state.dark_mode:
+        local_css("styles/dark.css")
+    else:
+        local_css("styles/light.css")
+
+# Sidebar
+st.sidebar.title("Stock Data Visualizer")
+toggle_theme()
 
 # Main title
 st.title("Stock Data Visualization App")
 
 # User input for stock symbols
-stock_symbols = st.text_input("Enter stock symbols separated by commas (e.g., AAPL, GOOGL):", "AAPL, MSFT").upper()
+stock_symbols = st.sidebar.text_input("Enter stock symbols separated by commas (e.g., AAPL, GOOGL):", "AAPL, MSFT").upper()
 symbols = [symbol.strip() for symbol in stock_symbols.split(',')]
 
 # Date range selection
-col1, col2 = st.columns(2)
+col1, col2 = st.sidebar.columns(2)
 with col1:
     start_date = st.date_input("Start date", datetime.now() - timedelta(days=365))
 with col2:
@@ -52,7 +74,9 @@ def get_stock_data(symbols, start_date, end_date):
             st.error(f"Error fetching data for {symbol}: {str(e)}")
     return data, info
 
-data, info = get_stock_data(symbols, start_date, end_date)
+# Show loading spinner
+with st.spinner("Fetching stock data..."):
+    data, info = get_stock_data(symbols, start_date, end_date)
 
 # Calculate technical indicators
 def calculate_technical_indicators(df):
@@ -208,36 +232,59 @@ if data and info:
 
     # Stock price history chart with technical indicators
     st.subheader(f"Stock Price History with Technical Indicators ({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})")
-    for symbol in symbols:
-        if symbol in data:
-            df = calculate_technical_indicators(data[symbol])
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=df.index, y=df['Close'], name=f"{symbol} Close Price"))
-            fig.add_trace(go.Scatter(x=df.index, y=df['SMA20'], name=f"{symbol} SMA20"))
-            fig.add_trace(go.Scatter(x=df.index, y=df['SMA50'], name=f"{symbol} SMA50"))
-            fig.update_layout(
-                title=f"{symbol} Stock Price with Moving Averages",
-                xaxis_title="Date",
-                yaxis_title="Price (USD)",
-                hovermode="x unified"
-            )
-            st.plotly_chart(fig, use_container_width=True)
+    
+    # Use tabs for different charts
+    tabs = st.tabs(["Price & Indicators"] + symbols)
+    
+    with tabs[0]:
+        fig = go.Figure()
+        for symbol in symbols:
+            if symbol in data:
+                df = calculate_technical_indicators(data[symbol])
+                fig.add_trace(go.Scatter(x=df.index, y=df['Close'], name=f"{symbol} Close Price"))
+                fig.add_trace(go.Scatter(x=df.index, y=df['SMA20'], name=f"{symbol} SMA20", visible='legendonly'))
+                fig.add_trace(go.Scatter(x=df.index, y=df['SMA50'], name=f"{symbol} SMA50", visible='legendonly'))
+        fig.update_layout(
+            title="Stock Prices with Moving Averages",
+            xaxis_title="Date",
+            yaxis_title="Price (USD)",
+            hovermode="x unified"
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-            # RSI chart
-            rsi_fig = go.Figure()
-            rsi_fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], name=f"{symbol} RSI"))
-            rsi_fig.add_shape(type="line", x0=df.index[0], y0=30, x1=df.index[-1], y1=30,
-                              line=dict(color="red", width=2, dash="dash"))
-            rsi_fig.add_shape(type="line", x0=df.index[0], y0=70, x1=df.index[-1], y1=70,
-                              line=dict(color="red", width=2, dash="dash"))
-            rsi_fig.update_layout(
-                title=f"{symbol} Relative Strength Index (RSI)",
-                xaxis_title="Date",
-                yaxis_title="RSI",
-                yaxis=dict(range=[0, 100]),
-                hovermode="x unified"
-            )
-            st.plotly_chart(rsi_fig, use_container_width=True)
+    for i, symbol in enumerate(symbols, start=1):
+        with tabs[i]:
+            if symbol in data:
+                df = calculate_technical_indicators(data[symbol])
+                
+                # Price and Moving Averages
+                fig_price = go.Figure()
+                fig_price.add_trace(go.Scatter(x=df.index, y=df['Close'], name="Close Price"))
+                fig_price.add_trace(go.Scatter(x=df.index, y=df['SMA20'], name="SMA20"))
+                fig_price.add_trace(go.Scatter(x=df.index, y=df['SMA50'], name="SMA50"))
+                fig_price.update_layout(
+                    title=f"{symbol} Stock Price with Moving Averages",
+                    xaxis_title="Date",
+                    yaxis_title="Price (USD)",
+                    hovermode="x unified"
+                )
+                st.plotly_chart(fig_price, use_container_width=True)
+
+                # RSI chart
+                fig_rsi = go.Figure()
+                fig_rsi.add_trace(go.Scatter(x=df.index, y=df['RSI'], name="RSI"))
+                fig_rsi.add_shape(type="line", x0=df.index[0], y0=30, x1=df.index[-1], y1=30,
+                                  line=dict(color="red", width=2, dash="dash"))
+                fig_rsi.add_shape(type="line", x0=df.index[0], y0=70, x1=df.index[-1], y1=70,
+                                  line=dict(color="red", width=2, dash="dash"))
+                fig_rsi.update_layout(
+                    title=f"{symbol} Relative Strength Index (RSI)",
+                    xaxis_title="Date",
+                    yaxis_title="RSI",
+                    yaxis=dict(range=[0, 100]),
+                    hovermode="x unified"
+                )
+                st.plotly_chart(fig_rsi, use_container_width=True)
 
     # Volume chart
     st.subheader(f"Trading Volume ({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})")

@@ -1,0 +1,32 @@
+/* Dark mode styles */
+body {
+    color: #f1f1f1;
+    background-color: #0e1117;
+}
+
+.stApp {
+    background-color: #0e1117;
+}
+
+.stButton>button {
+    color: #f1f1f1;
+    background-color: #262730;
+    border-color: #4a4a4a;
+}
+
+.stTextInput>div>div>input {
+    color: #f1f1f1;
+    background-color: #262730;
+}
+
+.stDateInput>div>div>input {
+    color: #f1f1f1;
+    background-color: #262730;
+}
+
+.stSelectbox>div>div>select {
+    color: #f1f1f1;
+    background-color: #262730;
+}
+
+/* Add more custom styles for dark mode as needed */
