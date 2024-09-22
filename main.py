@@ -303,13 +303,17 @@ if data and info:
     for symbol in symbols:
         if symbol in data:
             st.write(f"{symbol} Data:")
-            st.dataframe(data[symbol])
+            df = data[symbol].copy()
+            df.index = pd.to_datetime(df.index).strftime('%Y-%m-%d')
+            st.dataframe(df)
 
     # CSV download buttons
     st.subheader("Download Data")
     for symbol in symbols:
         if symbol in data:
-            csv = data[symbol].to_csv(index=True)
+            df = data[symbol].copy()
+            df.index = pd.to_datetime(df.index).strftime('%Y-%m-%d')
+            csv = df.to_csv(index=True)
             b64 = base64.b64encode(csv.encode()).decode()
             href = f'<a href="data:file/csv;base64,{b64}" download="{symbol}_stock_data_{start_date.strftime("%Y-%m-%d")}_{end_date.strftime("%Y-%m-%d")}.csv">Download {symbol} CSV File</a>'
             st.markdown(href, unsafe_allow_html=True)
