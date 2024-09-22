@@ -8,6 +8,7 @@ import io
 import numpy as np
 from newsapi import NewsApiClient
 from textblob import TextBlob
+import plotly.express as px
 
 # Set page title and favicon
 st.set_page_config(page_title="Stock Data Visualizer", page_icon=":chart_with_upwards_trend:")
@@ -63,14 +64,21 @@ def calculate_technical_indicators(df):
 
 # Fetch news and perform sentiment analysis
 @st.cache_data(ttl=3600)
-def get_news_sentiment(symbols):
+def get_news_sentiment(symbols, start_date, end_date):
     try:
         api_key = st.secrets["NEWS_API_KEY"]
         newsapi = NewsApiClient(api_key=api_key)
         news_sentiment = {}
 
         for symbol in symbols:
-            articles = newsapi.get_everything(q=symbol, language='en', sort_by='publishedAt', page_size=10)
+            articles = newsapi.get_everything(
+                q=symbol,
+                language='en',
+                sort_by='publishedAt',
+                from_param=start_date.isoformat(),
+                to=end_date.isoformat(),
+                page_size=10
+            )
             
             if articles['status'] == 'ok':
                 sentiments = []
@@ -81,6 +89,7 @@ def get_news_sentiment(symbols):
                         'title': article['title'],
                         'description': article['description'],
                         'url': article['url'],
+                        'publishedAt': article['publishedAt'],
                         'sentiment': sentiment
                     })
                 
@@ -94,6 +103,22 @@ def get_news_sentiment(symbols):
     except Exception as e:
         st.error(f"Error fetching news sentiment: {str(e)}")
         return {}
+
+def get_sentiment_category(sentiment):
+    if sentiment > 0.1:
+        return "Positive"
+    elif sentiment < -0.1:
+        return "Negative"
+    else:
+        return "Neutral"
+
+def get_sentiment_color(sentiment):
+    if sentiment > 0.1:
+        return "green"
+    elif sentiment < -0.1:
+        return "red"
+    else:
+        return "gray"
 
 if data and info:
     # Display company names and descriptions
@@ -170,25 +195,46 @@ if data and info:
 
     # News Sentiment Analysis
     st.subheader("News Sentiment Analysis")
-    news_sentiment = get_news_sentiment(symbols)
+    news_sentiment = get_news_sentiment(symbols, start_date, end_date)
     
     if news_sentiment:
+        sentiment_data = []
+        for symbol in symbols:
+            if symbol in news_sentiment:
+                avg_sentiment = news_sentiment[symbol]['average_sentiment']
+                sentiment_category = get_sentiment_category(avg_sentiment)
+                sentiment_data.append({
+                    'Symbol': symbol,
+                    'Sentiment Score': avg_sentiment,
+                    'Sentiment Category': sentiment_category
+                })
+        
+        sentiment_df = pd.DataFrame(sentiment_data)
+        fig = px.bar(sentiment_df, x='Symbol', y='Sentiment Score', color='Sentiment Category',
+                     title='Average Sentiment Score by Stock',
+                     labels={'Sentiment Score': 'Average Sentiment Score'},
+                     color_discrete_map={'Positive': 'green', 'Neutral': 'gray', 'Negative': 'red'})
+        st.plotly_chart(fig)
+
         for symbol in symbols:
             if symbol in news_sentiment:
                 st.write(f"### {symbol} News Sentiment")
                 avg_sentiment = news_sentiment[symbol]['average_sentiment']
-                st.write(f"Average Sentiment: {avg_sentiment:.2f}")
+                sentiment_category = get_sentiment_category(avg_sentiment)
+                sentiment_color = get_sentiment_color(avg_sentiment)
                 
-                sentiment_color = "green" if avg_sentiment > 0 else "red" if avg_sentiment < 0 else "gray"
-                st.markdown(f"<h4 style='color: {sentiment_color};'>{'Positive' if avg_sentiment > 0 else 'Negative' if avg_sentiment < 0 else 'Neutral'}</h4>", unsafe_allow_html=True)
+                st.markdown(f"<h4 style='color: {sentiment_color};'>Average Sentiment: {avg_sentiment:.2f} ({sentiment_category})</h4>", unsafe_allow_html=True)
                 
                 for article in news_sentiment[symbol]['articles']:
                     st.write(f"**{article['title']}**")
-                    st.write(f"Sentiment: {article['sentiment']:.2f}")
+                    st.write(f"Published at: {article['publishedAt']}")
+                    article_sentiment = get_sentiment_category(article['sentiment'])
+                    article_color = get_sentiment_color(article['sentiment'])
+                    st.markdown(f"<p style='color: {article_color};'>Sentiment: {article['sentiment']:.2f} ({article_sentiment})</p>", unsafe_allow_html=True)
                     st.write(f"[Read more]({article['url']})")
                     st.write("---")
     else:
-        st.warning("Unable to fetch news sentiment data. Please check your API key and try again.")
+        st.warning("Unable to fetch news sentiment data. Please check your API key and internet connection, then try again.")
 
     # Data table
     st.subheader(f"Stock Data Tables ({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})")
