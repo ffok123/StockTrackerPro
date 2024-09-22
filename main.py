@@ -9,6 +9,12 @@ import numpy as np
 from newsapi import NewsApiClient
 from textblob import TextBlob
 import plotly.express as px
+import logging
+import os
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Set page title and favicon
 st.set_page_config(page_title="Stock Data Visualizer", page_icon=":chart_with_upwards_trend:")
@@ -64,21 +70,37 @@ def calculate_technical_indicators(df):
 
 # Fetch news and perform sentiment analysis
 @st.cache_data(ttl=3600)
-def get_news_sentiment(symbols, start_date, end_date):
-    try:
-        api_key = st.secrets["NEWS_API_KEY"]
-        newsapi = NewsApiClient(api_key=api_key)
-        news_sentiment = {}
+def get_news_sentiment(symbols, start_date, end_date, info):
+    news_sentiment = {}
+    api_key = "dd81e3f696c6436ab2b9f2a6adf3260c"
+    
+    logger.debug(f"Using API key: {api_key[:5]}...")
 
-        for symbol in symbols:
+    try:
+        newsapi = NewsApiClient(api_key=api_key)
+        logger.debug("NewsApiClient initialized successfully")
+    except Exception as e:
+        logger.error(f"Error initializing NewsApiClient: {str(e)}")
+        return None
+
+    for symbol in symbols:
+        logger.info(f"Fetching news for {symbol}")
+        company_name = info[symbol]['longName'] if 'longName' in info[symbol] else symbol
+        query = f"{company_name} OR {symbol}"
+        
+        try:
+            logger.debug(f"Sending API request for {query}")
             articles = newsapi.get_everything(
-                q=symbol,
+                q=query,
                 language='en',
                 sort_by='publishedAt',
                 from_param=start_date.isoformat(),
                 to=end_date.isoformat(),
                 page_size=10
             )
+            logger.debug(f"API response received for {query}")
+            
+            logger.info(f"Received {len(articles['articles'])} articles for {symbol}")
             
             if articles['status'] == 'ok':
                 sentiments = []
@@ -93,16 +115,19 @@ def get_news_sentiment(symbols, start_date, end_date):
                         'sentiment': sentiment
                     })
                 
-                avg_sentiment = sum(article['sentiment'] for article in sentiments) / len(sentiments)
+                avg_sentiment = sum(article['sentiment'] for article in sentiments) / len(sentiments) if sentiments else 0
                 news_sentiment[symbol] = {
                     'articles': sentiments,
                     'average_sentiment': avg_sentiment
                 }
-        
-        return news_sentiment
-    except Exception as e:
-        st.error(f"Error fetching news sentiment: {str(e)}")
-        return {}
+                logger.info(f"Calculated average sentiment for {symbol}: {avg_sentiment}")
+            else:
+                logger.warning(f"Received non-OK status for {symbol}: {articles['status']}")
+        except Exception as e:
+            logger.error(f"Error processing news for {symbol}: {str(e)}")
+    
+    logger.debug("Finished processing all symbols")
+    return news_sentiment
 
 def get_sentiment_category(sentiment):
     if sentiment > 0.1:
@@ -195,9 +220,11 @@ if data and info:
 
     # News Sentiment Analysis
     st.subheader("News Sentiment Analysis")
-    news_sentiment = get_news_sentiment(symbols, start_date, end_date)
+    news_sentiment = get_news_sentiment(symbols, start_date, end_date, info)
     
-    if news_sentiment:
+    if news_sentiment is None:
+        st.error("Unable to fetch news sentiment data. Please check if the NEWS_API_KEY is properly set in the environment variables.")
+    elif news_sentiment:
         sentiment_data = []
         for symbol in symbols:
             if symbol in news_sentiment:
@@ -234,7 +261,7 @@ if data and info:
                     st.write(f"[Read more]({article['url']})")
                     st.write("---")
     else:
-        st.warning("Unable to fetch news sentiment data. Please check your API key and internet connection, then try again.")
+        st.warning("No news sentiment data available for the selected stocks and date range.")
 
     # Data table
     st.subheader(f"Stock Data Tables ({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})")
