@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Virtual Environment
+venv/
+env/
+.env
+
+# IDE specific files
+.vscode/
+.idea/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Replit specific
+.replit
+replit.nix
+poetry.lock
+pyproject.toml
+
+# Logs
+*.log
+
+# Cache
+.cache/
+
+# Local configuration
+.local/
+
+# Other
+*.bak
+*.swp
+*.swo
+*~
+
+# API keys and secrets
+.env
