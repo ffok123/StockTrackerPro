@@ -19,21 +19,32 @@ st.title("Stock Data Visualization App")
 stock_symbols = st.text_input("Enter stock symbols separated by commas (e.g., AAPL, GOOGL):", "AAPL, MSFT").upper()
 symbols = [symbol.strip() for symbol in stock_symbols.split(',')]
 
+# Date range selection
+col1, col2 = st.columns(2)
+with col1:
+    start_date = st.date_input("Start date", datetime.now() - timedelta(days=365))
+with col2:
+    end_date = st.date_input("End date", datetime.now())
+
+if start_date > end_date:
+    st.error("Error: End date must be after start date.")
+    st.stop()
+
 # Fetch stock data
 @st.cache_data
-def get_stock_data(symbols, period="1y"):
+def get_stock_data(symbols, start_date, end_date):
     data = {}
     info = {}
     for symbol in symbols:
         try:
             stock = yf.Ticker(symbol)
-            data[symbol] = stock.history(period=period)
+            data[symbol] = stock.history(start=start_date, end=end_date)
             info[symbol] = stock.info
         except Exception as e:
             st.error(f"Error fetching data for {symbol}: {str(e)}")
     return data, info
 
-data, info = get_stock_data(symbols)
+data, info = get_stock_data(symbols, start_date, end_date)
 
 # Calculate technical indicators
 def calculate_technical_indicators(df):
@@ -111,7 +122,7 @@ if data and info:
     st.table(key_stats)
 
     # Stock price history chart with technical indicators
-    st.subheader("Stock Price History with Technical Indicators")
+    st.subheader(f"Stock Price History with Technical Indicators ({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})")
     for symbol in symbols:
         if symbol in data:
             df = calculate_technical_indicators(data[symbol])
@@ -144,7 +155,7 @@ if data and info:
             st.plotly_chart(rsi_fig, use_container_width=True)
 
     # Volume chart
-    st.subheader("Trading Volume")
+    st.subheader(f"Trading Volume ({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})")
     volume_fig = go.Figure()
     for symbol in symbols:
         if symbol in data:
@@ -180,7 +191,7 @@ if data and info:
         st.warning("Unable to fetch news sentiment data. Please check your API key and try again.")
 
     # Data table
-    st.subheader("Stock Data Tables")
+    st.subheader(f"Stock Data Tables ({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})")
     for symbol in symbols:
         if symbol in data:
             st.write(f"{symbol} Data:")
@@ -192,7 +203,7 @@ if data and info:
         if symbol in data:
             csv = data[symbol].to_csv(index=True)
             b64 = base64.b64encode(csv.encode()).decode()
-            href = f'<a href="data:file/csv;base64,{b64}" download="{symbol}_stock_data.csv">Download {symbol} CSV File</a>'
+            href = f'<a href="data:file/csv;base64,{b64}" download="{symbol}_stock_data_{start_date.strftime("%Y-%m-%d")}_{end_date.strftime("%Y-%m-%d")}.csv">Download {symbol} CSV File</a>'
             st.markdown(href, unsafe_allow_html=True)
 
 else:
