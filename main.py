@@ -86,47 +86,51 @@ def get_news_sentiment(symbols, start_date, end_date, info):
     for symbol in symbols:
         logger.info(f"Fetching news for {symbol}")
         company_name = info[symbol]['longName'] if 'longName' in info[symbol] else symbol
-        query = f"{company_name} OR {symbol}"
         
         try:
-            logger.debug(f"Sending API request for {query}")
+            logger.debug(f"Sending API request for {company_name}")
             articles = newsapi.get_everything(
-                q=query,
+                qintitle=company_name,
                 language='en',
                 sort_by='publishedAt',
                 from_param=start_date.isoformat(),
                 to=end_date.isoformat(),
                 page_size=10
             )
-            logger.debug(f"API response received for {query}")
-            
-            logger.info(f"Received {len(articles['articles'])} articles for {symbol}")
+            logger.debug(f"API response for {company_name}: {articles}")
             
             if articles['status'] == 'ok':
-                sentiments = []
-                for article in articles['articles']:
-                    blob = TextBlob(article['title'] + " " + article['description'])
-                    sentiment = blob.sentiment.polarity
-                    sentiments.append({
-                        'title': article['title'],
-                        'description': article['description'],
-                        'url': article['url'],
-                        'publishedAt': article['publishedAt'],
-                        'sentiment': sentiment
-                    })
-                
-                avg_sentiment = sum(article['sentiment'] for article in sentiments) / len(sentiments) if sentiments else 0
-                news_sentiment[symbol] = {
-                    'articles': sentiments,
-                    'average_sentiment': avg_sentiment
-                }
-                logger.info(f"Calculated average sentiment for {symbol}: {avg_sentiment}")
+                if not articles['articles']:
+                    logger.warning(f"No articles found for {company_name}")
+                else:
+                    logger.info(f"Found {len(articles['articles'])} articles for {company_name}")
+                    sentiments = []
+                    for article in articles['articles']:
+                        logger.debug(f"Article title: {article['title']}")
+                        blob = TextBlob(article['title'] + " " + article['description'])
+                        sentiment = blob.sentiment.polarity
+                        logger.debug(f"Article sentiment: {sentiment}")
+                        sentiments.append({
+                            'title': article['title'],
+                            'description': article['description'],
+                            'url': article['url'],
+                            'publishedAt': article['publishedAt'],
+                            'sentiment': sentiment
+                        })
+                    
+                    avg_sentiment = sum(article['sentiment'] for article in sentiments) / len(sentiments) if sentiments else 0
+                    news_sentiment[symbol] = {
+                        'articles': sentiments,
+                        'average_sentiment': avg_sentiment
+                    }
+                    logger.info(f"Calculated average sentiment for {company_name}: {avg_sentiment}")
             else:
-                logger.warning(f"Received non-OK status for {symbol}: {articles['status']}")
+                logger.warning(f"Received non-OK status for {company_name}: {articles['status']}")
         except Exception as e:
-            logger.error(f"Error processing news for {symbol}: {str(e)}")
+            logger.error(f"Error processing news for {company_name}: {str(e)}")
+            logger.exception("Detailed error information:")
     
-    logger.debug("Finished processing all symbols")
+    logger.info(f"Final news sentiment data: {news_sentiment}")
     return news_sentiment
 
 def get_sentiment_category(sentiment):
