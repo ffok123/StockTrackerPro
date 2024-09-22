@@ -5,6 +5,7 @@ import plotly.graph_objs as go
 from datetime import datetime, timedelta
 import base64
 import io
+import numpy as np
 
 # Set page title and favicon
 st.set_page_config(page_title="Stock Data Visualizer", page_icon=":chart_with_upwards_trend:")
@@ -32,6 +33,21 @@ def get_stock_data(symbols, period="1y"):
 
 data, info = get_stock_data(symbols)
 
+# Calculate technical indicators
+def calculate_technical_indicators(df):
+    # Simple Moving Average (SMA)
+    df['SMA20'] = df['Close'].rolling(window=20).mean()
+    df['SMA50'] = df['Close'].rolling(window=50).mean()
+    
+    # Relative Strength Index (RSI)
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+    
+    return df
+
 if data and info:
     # Display company names and descriptions
     for symbol in symbols:
@@ -58,19 +74,38 @@ if data and info:
 
     st.table(key_stats)
 
-    # Stock price history chart
-    st.subheader("Stock Price History")
-    fig = go.Figure()
+    # Stock price history chart with technical indicators
+    st.subheader("Stock Price History with Technical Indicators")
     for symbol in symbols:
         if symbol in data:
-            fig.add_trace(go.Scatter(x=data[symbol].index, y=data[symbol]['Close'], name=f"{symbol} Close Price"))
-    fig.update_layout(
-        title="Stock Price Comparison",
-        xaxis_title="Date",
-        yaxis_title="Price (USD)",
-        hovermode="x unified"
-    )
-    st.plotly_chart(fig, use_container_width=True)
+            df = calculate_technical_indicators(data[symbol])
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=df.index, y=df['Close'], name=f"{symbol} Close Price"))
+            fig.add_trace(go.Scatter(x=df.index, y=df['SMA20'], name=f"{symbol} SMA20"))
+            fig.add_trace(go.Scatter(x=df.index, y=df['SMA50'], name=f"{symbol} SMA50"))
+            fig.update_layout(
+                title=f"{symbol} Stock Price with Moving Averages",
+                xaxis_title="Date",
+                yaxis_title="Price (USD)",
+                hovermode="x unified"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            # RSI chart
+            rsi_fig = go.Figure()
+            rsi_fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], name=f"{symbol} RSI"))
+            rsi_fig.add_shape(type="line", x0=df.index[0], y0=30, x1=df.index[-1], y1=30,
+                              line=dict(color="red", width=2, dash="dash"))
+            rsi_fig.add_shape(type="line", x0=df.index[0], y0=70, x1=df.index[-1], y1=70,
+                              line=dict(color="red", width=2, dash="dash"))
+            rsi_fig.update_layout(
+                title=f"{symbol} Relative Strength Index (RSI)",
+                xaxis_title="Date",
+                yaxis_title="RSI",
+                yaxis=dict(range=[0, 100]),
+                hovermode="x unified"
+            )
+            st.plotly_chart(rsi_fig, use_container_width=True)
 
     # Volume chart
     st.subheader("Trading Volume")
