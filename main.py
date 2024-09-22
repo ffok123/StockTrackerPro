@@ -73,7 +73,7 @@ def calculate_technical_indicators(df):
 @st.cache_data(ttl=3600)
 def get_news_sentiment(symbols, start_date, end_date, info):
     news_sentiment = {}
-    api_key = "dd81e3f696c6436ab2b9f2a6adf3260c"
+    api_key = os.environ.get('NEWS_API_KEY')
     
     logger.debug(f"Using API key: {api_key[:5]}...")
 
@@ -303,13 +303,22 @@ if data and info:
     for symbol in symbols:
         if symbol in data:
             st.write(f"{symbol} Data:")
-            st.dataframe(data[symbol])
+            # Select specific columns and format date
+            df = data[symbol].reset_index()
+            df['Date'] = df['Date'].dt.strftime('%Y-%m-%d')
+            selected_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+            df_display = df[selected_columns].set_index('Date')
+            st.dataframe(df_display)
 
     # CSV download buttons
     st.subheader("Download Data")
     for symbol in symbols:
         if symbol in data:
-            csv = data[symbol].to_csv(index=True)
+            df = data[symbol].reset_index()
+            df['Date'] = df['Date'].dt.strftime('%Y-%m-%d')
+            selected_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+            df_csv = df[selected_columns].set_index('Date')
+            csv = df_csv.to_csv(index=True)
             b64 = base64.b64encode(csv.encode()).decode()
             href = f'<a href="data:file/csv;base64,{b64}" download="{symbol}_stock_data_{start_date.strftime("%Y-%m-%d")}_{end_date.strftime("%Y-%m-%d")}.csv">Download {symbol} CSV File</a>'
             st.markdown(href, unsafe_allow_html=True)
