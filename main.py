@@ -11,6 +11,7 @@ from newsapi.newsapi_exception import NewsAPIException
 from textblob import TextBlob
 import plotly.express as px
 import logging
+import os
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -21,13 +22,6 @@ st.set_page_config(page_title="Stock Data Visualizer", page_icon=":chart_with_up
 
 # Main title
 st.title("Stock Data Visualization App")
-
-# Add a message about the API key
-st.warning("""
-⚠️ Important: This app requires a News API key to function properly.
-Please replace 'YOUR_NEWS_API_KEY_HERE' in the `main.py` file with your actual News API key.
-You can obtain a free API key from https://newsapi.org/
-""")
 
 # User input for stock symbols
 stock_symbols = st.text_input("Enter stock symbols separated by commas (e.g., AAPL, GOOGL):", "AAPL, MSFT").upper()
@@ -79,9 +73,7 @@ def calculate_technical_indicators(df):
 @st.cache_data(ttl=3600)
 def get_news_sentiment(symbols, start_date, end_date, info):
     news_sentiment = {}
-    
-    # Replace 'YOUR_NEWS_API_KEY_HERE' with your actual News API key
-    api_key = "YOUR_NEWS_API_KEY_HERE"
+    api_key = "dd81e3f696c6436ab2b9f2a6adf3260c"
     
     logger.debug(f"Using API key: {api_key[:5]}...")
 
@@ -163,8 +155,8 @@ def get_news_sentiment(symbols, start_date, end_date, info):
             st.error(error_message)
             logger.error(error_message)
             logger.error(f"Start date: {start_date}, End date: {end_date}")
-            return {}
-
+            return {}  # Return an empty dictionary instead of None
+    
     if not news_sentiment:
         logger.warning("No news sentiment data was collected.")
         return {}
@@ -172,78 +164,159 @@ def get_news_sentiment(symbols, start_date, end_date, info):
     logger.info(f"Final news sentiment data: {news_sentiment}")
     return news_sentiment
 
-# Visualize stock data
-def visualize_stock_data(data, info, news_sentiment):
-    for symbol in data:
-        st.subheader(f"{info[symbol]['longName']} ({symbol})")
-        
-        # Calculate technical indicators
-        df = calculate_technical_indicators(data[symbol])
-        
-        # Stock price chart
-        fig = go.Figure()
-        fig.add_trace(go.Candlestick(x=df.index,
-                                     open=df['Open'],
-                                     high=df['High'],
-                                     low=df['Low'],
-                                     close=df['Close'],
-                                     name='Price'))
-        fig.add_trace(go.Scatter(x=df.index, y=df['SMA20'], name='SMA 20'))
-        fig.add_trace(go.Scatter(x=df.index, y=df['SMA50'], name='SMA 50'))
-        fig.update_layout(title='Stock Price', xaxis_title='Date', yaxis_title='Price', height=600)
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Volume chart
-        fig_volume = go.Figure()
-        fig_volume.add_trace(go.Bar(x=df.index, y=df['Volume'], name='Volume'))
-        fig_volume.update_layout(title='Trading Volume', xaxis_title='Date', yaxis_title='Volume', height=400)
-        st.plotly_chart(fig_volume, use_container_width=True)
-        
-        # RSI chart
-        fig_rsi = go.Figure()
-        fig_rsi.add_trace(go.Scatter(x=df.index, y=df['RSI'], name='RSI'))
-        fig_rsi.add_hline(y=70, line_dash="dash", line_color="red")
-        fig_rsi.add_hline(y=30, line_dash="dash", line_color="green")
-        fig_rsi.update_layout(title='Relative Strength Index (RSI)', xaxis_title='Date', yaxis_title='RSI', height=400)
-        st.plotly_chart(fig_rsi, use_container_width=True)
-        
-        # Display news sentiment
-        if symbol in news_sentiment:
-            st.subheader("News Sentiment Analysis")
-            avg_sentiment = news_sentiment[symbol]['average_sentiment']
-            st.write(f"Average sentiment score: {avg_sentiment:.2f}")
-            
-            sentiment_color = 'green' if avg_sentiment > 0 else 'red' if avg_sentiment < 0 else 'gray'
-            st.markdown(f"<h3 style='color: {sentiment_color};'>{'Positive' if avg_sentiment > 0 else 'Negative' if avg_sentiment < 0 else 'Neutral'}</h3>", unsafe_allow_html=True)
-            
-            # Display recent news articles
-            st.subheader("Recent News Articles")
-            for article in news_sentiment[symbol]['articles']:
-                st.write(f"**{article['title']}**")
-                st.write(f"Sentiment: {article['sentiment']:.2f}")
-                st.write(f"Published at: {article['publishedAt']}")
-                st.write(f"[Read more]({article['url']})")
-                st.write("---")
-        else:
-            st.warning("No news sentiment data available for this stock.")
+def get_sentiment_category(sentiment):
+    if sentiment > 0.1:
+        return "Positive"
+    elif sentiment < -0.1:
+        return "Negative"
+    else:
+        return "Neutral"
 
-# Main function
-def main():
-    # Fetch news sentiment data
+def get_sentiment_color(sentiment):
+    if sentiment > 0.1:
+        return "green"
+    elif sentiment < -0.1:
+        return "red"
+    else:
+        return "gray"
+
+if data and info:
+    # Display company names and descriptions
+    for symbol in symbols:
+        if symbol in info:
+            st.header(f"{info[symbol]['longName']} ({symbol})")
+            st.write(info[symbol]['longBusinessSummary'])
+
+    # Key financial information table
+    st.subheader("Key Financial Information")
+    key_stats = pd.DataFrame({
+        "Metric": ["Market Cap", "P/E Ratio", "Forward P/E", "Dividend Yield", "52 Week High", "52 Week Low"]
+    })
+
+    for symbol in symbols:
+        if symbol in info:
+            key_stats[symbol] = [
+                f"${info[symbol]['marketCap']:,}",
+                f"{info[symbol]['trailingPE']:.2f}" if 'trailingPE' in info[symbol] else 'N/A',
+                f"{info[symbol]['forwardPE']:.2f}" if 'forwardPE' in info[symbol] else 'N/A',
+                f"{info[symbol]['dividendYield']*100:.2f}%" if 'dividendYield' in info[symbol] else 'N/A',
+                f"${info[symbol]['fiftyTwoWeekHigh']:.2f}",
+                f"${info[symbol]['fiftyTwoWeekLow']:.2f}"
+            ]
+
+    st.table(key_stats)
+
+    # Stock price history chart with technical indicators
+    st.subheader(f"Stock Price History with Technical Indicators ({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})")
+    for symbol in symbols:
+        if symbol in data:
+            df = calculate_technical_indicators(data[symbol])
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=df.index, y=df['Close'], name=f"{symbol} Close Price"))
+            fig.add_trace(go.Scatter(x=df.index, y=df['SMA20'], name=f"{symbol} SMA20"))
+            fig.add_trace(go.Scatter(x=df.index, y=df['SMA50'], name=f"{symbol} SMA50"))
+            fig.update_layout(
+                title=f"{symbol} Stock Price with Moving Averages",
+                xaxis_title="Date",
+                yaxis_title="Price (USD)",
+                hovermode="x unified"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            # RSI chart
+            rsi_fig = go.Figure()
+            rsi_fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], name=f"{symbol} RSI"))
+            rsi_fig.add_shape(type="line", x0=df.index[0], y0=30, x1=df.index[-1], y1=30,
+                              line=dict(color="red", width=2, dash="dash"))
+            rsi_fig.add_shape(type="line", x0=df.index[0], y0=70, x1=df.index[-1], y1=70,
+                              line=dict(color="red", width=2, dash="dash"))
+            rsi_fig.update_layout(
+                title=f"{symbol} Relative Strength Index (RSI)",
+                xaxis_title="Date",
+                yaxis_title="RSI",
+                yaxis=dict(range=[0, 100]),
+                hovermode="x unified"
+            )
+            st.plotly_chart(rsi_fig, use_container_width=True)
+
+    # Volume chart
+    st.subheader(f"Trading Volume ({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})")
+    volume_fig = go.Figure()
+    for symbol in symbols:
+        if symbol in data:
+            volume_fig.add_trace(go.Bar(x=data[symbol].index, y=data[symbol]['Volume'], name=f"{symbol} Volume"))
+    volume_fig.update_layout(
+        title="Trading Volume Comparison",
+        xaxis_title="Date",
+        yaxis_title="Volume",
+        hovermode="x unified"
+    )
+    st.plotly_chart(volume_fig, use_container_width=True)
+
+    # News Sentiment Analysis
+    st.subheader("News Sentiment Analysis")
     news_sentiment = get_news_sentiment(symbols, start_date, end_date, info)
     
-    # Visualize stock data
-    visualize_stock_data(data, info, news_sentiment)
-    
-    # Download data as CSV
-    csv = io.StringIO()
-    for symbol in data:
-        data[symbol].to_csv(csv, index=True)
-    
-    csv_contents = csv.getvalue()
-    b64 = base64.b64encode(csv_contents.encode()).decode()
-    href = f'<a href="data:file/csv;base64,{b64}" download="stock_data.csv">Download CSV File</a>'
-    st.markdown(href, unsafe_allow_html=True)
+    if news_sentiment is None:
+        st.error("Unable to fetch news sentiment data. Please check if the NEWS_API_KEY is properly set in the environment variables.")
+    elif news_sentiment:
+        sentiment_data = []
+        for symbol in symbols:
+            if symbol in news_sentiment:
+                avg_sentiment = news_sentiment[symbol]['average_sentiment']
+                sentiment_category = get_sentiment_category(avg_sentiment)
+                sentiment_data.append({
+                    'Symbol': symbol,
+                    'Sentiment Score': avg_sentiment,
+                    'Sentiment Category': sentiment_category
+                })
+        
+        sentiment_df = pd.DataFrame(sentiment_data)
+        fig = px.bar(sentiment_df, x='Symbol', y='Sentiment Score', color='Sentiment Category',
+                     title='Average Sentiment Score by Stock',
+                     labels={'Sentiment Score': 'Average Sentiment Score'},
+                     color_discrete_map={'Positive': 'green', 'Neutral': 'gray', 'Negative': 'red'})
+        st.plotly_chart(fig)
 
-if __name__ == "__main__":
-    main()
+        for symbol in symbols:
+            if symbol in news_sentiment:
+                st.write(f"### {symbol} News Sentiment")
+                avg_sentiment = news_sentiment[symbol]['average_sentiment']
+                sentiment_category = get_sentiment_category(avg_sentiment)
+                sentiment_color = get_sentiment_color(avg_sentiment)
+                
+                st.markdown(f"<h4 style='color: {sentiment_color};'>Average Sentiment: {avg_sentiment:.2f} ({sentiment_category})</h4>", unsafe_allow_html=True)
+                
+                for article in news_sentiment[symbol]['articles']:
+                    st.write(f"**{article['title']}**")
+                    st.write(f"Published at: {article['publishedAt']}")
+                    article_sentiment = get_sentiment_category(article['sentiment'])
+                    article_color = get_sentiment_color(article['sentiment'])
+                    st.markdown(f"<p style='color: {article_color};'>Sentiment: {article['sentiment']:.2f} ({article_sentiment})</p>", unsafe_allow_html=True)
+                    st.write(f"[Read more]({article['url']})")
+                    st.write("---")
+    else:
+        st.warning("No news sentiment data available for the selected stocks and date range.")
+
+    # Data table
+    st.subheader(f"Stock Data Tables ({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})")
+    for symbol in symbols:
+        if symbol in data:
+            st.write(f"{symbol} Data:")
+            st.dataframe(data[symbol])
+
+    # CSV download buttons
+    st.subheader("Download Data")
+    for symbol in symbols:
+        if symbol in data:
+            csv = data[symbol].to_csv(index=True)
+            b64 = base64.b64encode(csv.encode()).decode()
+            href = f'<a href="data:file/csv;base64,{b64}" download="{symbol}_stock_data_{start_date.strftime("%Y-%m-%d")}_{end_date.strftime("%Y-%m-%d")}.csv">Download {symbol} CSV File</a>'
+            st.markdown(href, unsafe_allow_html=True)
+
+else:
+    st.warning("Please enter valid stock symbols.")
+
+# Add footer
+st.markdown("---")
+st.markdown("Created with Streamlit, yfinance, and Plotly")
