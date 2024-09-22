@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 import base64
 import io
 import numpy as np
+from newsapi import NewsApiClient
+from textblob import TextBlob
 
 # Set page title and favicon
 st.set_page_config(page_title="Stock Data Visualizer", page_icon=":chart_with_upwards_trend:")
@@ -47,6 +49,35 @@ def calculate_technical_indicators(df):
     df['RSI'] = 100 - (100 / (1 + rs))
     
     return df
+
+# Fetch news and perform sentiment analysis
+@st.cache_data(ttl=3600)
+def get_news_sentiment(symbols):
+    newsapi = NewsApiClient(api_key=st.secrets["NEWS_API_KEY"])
+    news_sentiment = {}
+
+    for symbol in symbols:
+        articles = newsapi.get_everything(q=symbol, language='en', sort_by='publishedAt', page_size=10)
+        
+        if articles['status'] == 'ok':
+            sentiments = []
+            for article in articles['articles']:
+                blob = TextBlob(article['title'] + " " + article['description'])
+                sentiment = blob.sentiment.polarity
+                sentiments.append({
+                    'title': article['title'],
+                    'description': article['description'],
+                    'url': article['url'],
+                    'sentiment': sentiment
+                })
+            
+            avg_sentiment = sum(article['sentiment'] for article in sentiments) / len(sentiments)
+            news_sentiment[symbol] = {
+                'articles': sentiments,
+                'average_sentiment': avg_sentiment
+            }
+    
+    return news_sentiment
 
 if data and info:
     # Display company names and descriptions
@@ -120,6 +151,25 @@ if data and info:
         hovermode="x unified"
     )
     st.plotly_chart(volume_fig, use_container_width=True)
+
+    # News Sentiment Analysis
+    st.subheader("News Sentiment Analysis")
+    news_sentiment = get_news_sentiment(symbols)
+    
+    for symbol in symbols:
+        if symbol in news_sentiment:
+            st.write(f"### {symbol} News Sentiment")
+            avg_sentiment = news_sentiment[symbol]['average_sentiment']
+            st.write(f"Average Sentiment: {avg_sentiment:.2f}")
+            
+            sentiment_color = "green" if avg_sentiment > 0 else "red" if avg_sentiment < 0 else "gray"
+            st.markdown(f"<h4 style='color: {sentiment_color};'>{'Positive' if avg_sentiment > 0 else 'Negative' if avg_sentiment < 0 else 'Neutral'}</h4>", unsafe_allow_html=True)
+            
+            for article in news_sentiment[symbol]['articles']:
+                st.write(f"**{article['title']}**")
+                st.write(f"Sentiment: {article['sentiment']:.2f}")
+                st.write(f"[Read more]({article['url']})")
+                st.write("---")
 
     # Data table
     st.subheader("Stock Data Tables")
