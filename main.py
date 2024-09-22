@@ -73,7 +73,7 @@ def calculate_technical_indicators(df):
 @st.cache_data(ttl=3600)
 def get_news_sentiment(symbols, start_date, end_date, info):
     news_sentiment = {}
-    api_key = os.environ.get("NEWS_API_KEY")
+    api_key = "dd81e3f696c6436ab2b9f2a6adf3260c"
     
     logger.debug(f"Using API key: {api_key[:5]}...")
 
