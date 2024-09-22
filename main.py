@@ -88,7 +88,7 @@ def get_news_sentiment(symbols, start_date, end_date, info):
         logger.debug("NewsApiClient initialized successfully")
     except Exception as e:
         logger.error(f"Error initializing NewsApiClient: {str(e)}")
-        return None
+        return {}
 
     for symbol in symbols:
         logger.info(f"Fetching news for {symbol}")
@@ -113,17 +113,31 @@ def get_news_sentiment(symbols, start_date, end_date, info):
                     logger.info(f"Found {len(articles['articles'])} articles for {company_name}")
                     sentiments = []
                     for article in articles['articles']:
-                        logger.debug(f"Article title: {article['title']}")
-                        blob = TextBlob(article['title'] + " " + article['description'])
-                        sentiment = blob.sentiment.polarity
-                        logger.debug(f"Article sentiment: {sentiment}")
-                        sentiments.append({
-                            'title': article['title'],
-                            'description': article['description'],
-                            'url': article['url'],
-                            'publishedAt': article['publishedAt'],
-                            'sentiment': sentiment
-                        })
+                        try:
+                            title = article.get('title', '')
+                            description = article.get('description', '')
+                            if title is None:
+                                title = ''
+                            if description is None:
+                                description = ''
+                            
+                            logger.debug(f"Article title: {title}")
+                            logger.debug(f"Article description: {description}")
+                            
+                            blob = TextBlob(title + " " + description)
+                            sentiment = blob.sentiment.polarity
+                            logger.debug(f"Article sentiment: {sentiment}")
+                            
+                            sentiments.append({
+                                'title': title,
+                                'description': description,
+                                'url': article.get('url', ''),
+                                'publishedAt': article.get('publishedAt', ''),
+                                'sentiment': sentiment
+                            })
+                        except Exception as e:
+                            logger.error(f"Error processing article: {str(e)}")
+                            continue
                     
                     avg_sentiment = sum(article['sentiment'] for article in sentiments) / len(sentiments) if sentiments else 0
                     news_sentiment[symbol] = {
@@ -137,10 +151,16 @@ def get_news_sentiment(symbols, start_date, end_date, info):
             st.error(f"News API Error: {str(e)}")
             logger.error(f"NewsAPIException: {str(e)}")
         except Exception as e:
-            st.error(f"An error occurred while fetching news data: {str(e)}")
-            logger.error(f"Error in get_news_sentiment: {str(e)}")
+            error_message = f"An error occurred while fetching news data: {str(e)}"
+            st.error(error_message)
+            logger.error(error_message)
             logger.error(f"Start date: {start_date}, End date: {end_date}")
+            return {}  # Return an empty dictionary instead of None
     
+    if not news_sentiment:
+        logger.warning("No news sentiment data was collected.")
+        return {}
+
     logger.info(f"Final news sentiment data: {news_sentiment}")
     return news_sentiment
 
